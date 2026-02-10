@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroPack | Digital Backpack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; }
+      .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+    <!-- Babel for JSX/TS transformation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script type="importmap">
+    {
+      "imports": {
+        "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+        "react": "https://esm.sh/react@^19.2.4",
+        "react-dom/client": "https://esm.sh/react-dom@^19.2.4/client",
+        "uuid": "https://esm.sh/uuid@^13.0.0"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+          Mail, Calendar, HardDrive, BookOpen, ShieldCheck, PlayCircle, 
+          MessageCircle, LayoutGrid, StickyNote, Globe, Image as ImageIcon, 
+          Link as LinkIcon, Pencil, Trash2, ExternalLink, X, Save, Plus,
+          Search, LogIn, LogOut
+        } from 'lucide-react';
+        import { v4 as uuidv4 } from 'uuid';
+
+        // --- Types (Babel will strip these) ---
+        interface Item {
+          id: string;
+          type: 'note' | 'link' | 'image';
+          title: string;
+          content: string;
+          tags: string[];
+          createdAt: number;
+          isFavorite: boolean;
+          customIcon?: string;
+          description?: string;
+        }
+
+        interface User {
+          name: string;
+          email: string;
+          avatar: string;
+        }
+
+        // --- Constants ---
+        const INITIAL_LINKS = [
+          // Microsoft
+          { id: 'ms-1', type: 'link', title: 'Install Office', content: 'https://portal.office.com/account', tags: ['Microsoft'], createdAt: Date.now(), isFavorite: false, customIcon: 'Office' },
+          { id: 'ms-2', type: 'link', title: 'Microsoft 365', content: 'https://www.microsoft.com/microsoft-365', tags: ['Microsoft'], createdAt: Date.now(), isFavorite: false, customIcon: 'M365' },
+          
+          // Learning
+          { id: 'ln-1', type: 'link', title: 'Oliver', content: 'https://www.oliver.com.au', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-2', type: 'link', title: 'Britannica Online', content: 'https://www.britannica.com', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-3', type: 'link', title: 'MyFuture', content: 'https://myfuture.edu.au', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-4', type: 'link', title: 'TeachingBooks', content: 'https://www.teachingbooks.net', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-5', type: 'link', title: 'World Book Online', content: 'https://www.worldbookonline.com', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-6', type: 'link', title: 'Grok Academy', content: 'https://groklearning.com', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+          { id: 'ln-7', type: 'link', title: 'Sora Reading', content: 'https://soraapp.com', tags: ['Learning'], createdAt: Date.now(), isFavorite: false },
+
+          // Google
+          { id: 'gl-1', type: 'link', title: 'Gmail', content: 'https://mail.google.com/mail/u/0/', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Mail' },
+          { id: 'gl-2', type: 'link', title: 'Google Calendar', content: 'https://calendar.google.com/calendar/r', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Calendar' },
+          { id: 'gl-3', type: 'link', title: 'Google Classroom', content: 'https://classroom.google.com/h', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Classroom' },
+          { id: 'gl-4', type: 'link', title: 'Google Contacts', content: 'https://contacts.google.com/', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Contacts' },
+          { id: 'gl-5', type: 'link', title: 'Google Drive', content: 'https://drive.google.com/drive/my-drive', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Drive' },
+          { id: 'gl-6', type: 'link', title: 'Google Sites', content: 'https://sites.google.com/', tags: ['Google'], createdAt: Date.now(), isFavorite: false, customIcon: 'Sites' },
+
+          // Sites
+          { id: 'st-1', type: 'link', title: 'ClickView', content: 'https://www.clickview.com.au/', tags: ['Sites'], createdAt: Date.now(), isFavorite: false, customIcon: 'Video' },
+          { id: 'st-2', type: 'link', title: 'Online Safety', content: 'https://www.esafety.gov.au/', tags: ['Sites'], createdAt: Date.now(), isFavorite: false, customIcon: 'Safety' },
+          { id: 'st-3', type: 'link', title: 'Feedback/Complaints', content: '#feedback', tags: ['Sites'], createdAt: Date.now(), isFavorite: false, customIcon: 'Feedback' },
+        ];
+
+        const HIDDEN_LINKS = [
+          { id: 'h-gpu71', type: 'link', title: 'Truffled', content: 'https://school.metropolitanstaffingsolutions.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-gpu74', type: 'link', title: 'Selevseesa', content: 'https://selevseesa.gpu74.ru/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-visser', type: 'link', title: 'Willem Visser', content: 'https://new.willemvisser.co.za', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-tracks', type: 'link', title: 'Tracks', content: 'https://tracks.empleosonora.gob.mx/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-0', type: 'link', title: 'Abyss Web', content: 'https://abyss-web-dun.vercel.app/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-1', type: 'link', title: 'CSGO Clicker', content: 'https://csgoclicker.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-2', type: 'link', title: 'UBG365', content: 'https://ubg365.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-3', type: 'link', title: 'New Unblocked', content: 'https://newunblockedgames.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-4', type: 'link', title: 'G-Plus Games', content: 'https://unblocked-games-gplus.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-5', type: 'link', title: 'Tyrone Unblocked', content: 'https://tyroneunblockedgames.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-6', type: 'link', title: 'Unblocked 76', content: 'https://unblocked-games-76.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-7', type: 'link', title: '2048 / 1024', content: 'https://unblockedgames1024.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-8', type: 'link', title: 'G-Plus', content: 'https://unblocked-games-g-plus.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-9', type: 'link', title: 'Unblocked WTF', content: 'https://unblockedgamewtf.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-10', type: 'link', title: 'Super Liquid Soccer', content: 'https://superliquidsoccer.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-11', type: 'link', title: '76x Games', content: 'https://unblockedgames76x.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-12', type: 'link', title: 'Super Mario 64', content: 'https://super-mario-64.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-13', type: 'link', title: 'WTF Game', content: 'https://wtfgame.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-14', type: 'link', title: '76 DA9497', content: 'https://unblockedgames76-da9497.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-15', type: 'link', title: 'Games 6x', content: 'https://games6x.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-16', type: 'link', title: 'Basketball Stars', content: 'https://basketball-stars.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-17', type: 'link', title: '66 EZ', content: 'https://66-ez.gitlab.io/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-18', type: 'link', title: 'Diggy', content: 'https://gameunblocked.gitlab.io/game/diggy.html', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-1', type: 'link', title: 'AsistDoc', content: 'https://2.asistdoc.ar/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-2', type: 'link', title: '2167 Days', content: 'https://two.thousand.one.hundred.sixty.seven.days.dimitriecantemir.ro/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-3', type: 'link', title: 'Bonded Game A', content: 'https://ugyjfbsdrtghbfvxdrgtf.dfgvbhgfcvb.bonded-game.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-4', type: 'link', title: 'Bonded Game B', content: 'https://uytjhuyghbjkuiyhbjku.fghvhbvghjgj.bonded-game.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-5', type: 'link', title: 'DS Yule A', content: 'https://iopsfwjrklewrdf.xcvjklesdfewf.dingsheng-yule.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-6', type: 'link', title: 'DS Yule B', content: 'https://oijkmuiojk.yhujnmok.dingsheng-yule.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-7', type: 'link', title: 'BYOD Best', content: 'https://byodisthebest.hobbygame.dev/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-8', type: 'link', title: 'Aqua', content: 'https://aqua.bastaff.ru/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-9', type: 'link', title: 'Motel', content: 'https://motel.hotelconsuladoinn.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-10', type: 'link', title: 'Directory Proxy', content: 'https://directory.leeschoolsk12.org.cdn.cloudflare.net/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-11', type: 'link', title: 'CodeHS 67', content: 'https://67-67-67-67-67-67-67-67-67-67-67-67-67-67-67-67-67-67--17246506.codehs.me/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-12', type: 'link', title: 'Player Nation', content: 'https://player-nation.bayworld.net/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-13', type: 'link', title: 'Career Info', content: 'https://info.bostoncareercounselor.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-14', type: 'link', title: 'Gold Static', content: 'https://gold-static.pages.dev/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-15', type: 'link', title: 'Math for Kids', content: 'https://aisd.mathforkids.buzz/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-16', type: 'link', title: 'Bypass', content: 'https://buypass.bypassi.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-17', type: 'link', title: 'Eaglercraft', content: 'https://eaglercraftbetter.minecraftnoob.com/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-18', type: 'link', title: 'Wiki Edu', content: 'https://study.wiki-edu.xyz.cdn.cloudflare.net/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+          { id: 'h-new-19', type: 'link', title: 'Wan Hui', content: 'https://projects.wanhuiarchitect.com/onboarding/', tags: ['Games'], createdAt: Date.now(), isFavorite: true },
+        ];
+
+        // --- Components ---
+        
+        // ItemCard.tsx
+        const ItemCard = ({ item, onDelete, onEdit, onOpen }) => {
+          const getIcon = () => {
+            const iconProps = { size: 24, className: "text-slate-700" };
+            
+            if (item.customIcon === 'Mail' || item.title.includes('Gmail')) return <Mail {...iconProps} className="text-red-500" />;
+            if (item.customIcon === 'Calendar' || item.title.includes('Calendar')) return <Calendar {...iconProps} className="text-blue-500" />;
+            if (item.customIcon === 'Drive' || item.title.includes('Drive')) return <HardDrive {...iconProps} className="text-green-500" />;
+            if (item.customIcon === 'Classroom') return <BookOpen {...iconProps} className="text-amber-500" />;
+            if (item.customIcon === 'Contacts') return <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">C</div>;
+            if (item.customIcon === 'Sites') return <LayoutGrid {...iconProps} className="text-purple-500" />;
+            if (item.customIcon === 'Office') return <div className="w-6 h-6 bg-orange-600 flex items-center justify-center text-white font-bold text-xs rounded">O</div>;
+            if (item.customIcon === 'M365') return <div className="w-6 h-6 bg-indigo-600 flex items-center justify-center text-white font-bold text-xs rounded-full">M</div>;
+            if (item.customIcon === 'Safety') return <ShieldCheck {...iconProps} className="text-emerald-600" />;
+            if (item.customIcon === 'Video') return <PlayCircle {...iconProps} className="text-blue-600" />;
+            if (item.customIcon === 'Feedback') return <MessageCircle {...iconProps} className="text-blue-400" />;
+            
+            if (item.title.includes('Oliver')) return <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white font-serif font-bold">O</div>;
+            if (item.title.includes('Grok')) return <div className="w-6 h-6 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-xs">G</div>;
+            if (item.title.includes('Sora')) return <div className="w-6 h-6 bg-sky-400 rounded-full flex items-center justify-center text-white font-bold text-xs">S</div>;
+
+            switch (item.type) {
+              case 'note': return <StickyNote size={24} className="text-amber-400" />;
+              case 'link': return <Globe size={24} className="text-blue-400" />;
+              case 'image': return <ImageIcon size={24} className="text-purple-400" />;
+              default: return <LinkIcon size={24} className="text-slate-400" />;
+            }
+          };
+
+          return (
+            <a 
+              href={item.type === 'link' ? item.content : '#'}
+              target={item.type === 'link' && !onOpen ? "_blank" : "_self"}
+              rel="noopener noreferrer"
+              className="group bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-lg p-4 transition-all duration-200 flex items-center gap-4 shadow-sm hover:shadow-md cursor-pointer relative h-20"
+              onClick={(e) => {
+                if (onOpen) {
+                    e.preventDefault();
+                    onOpen(item);
+                } else if (item.type !== 'link') {
+                    e.preventDefault();
+                }
+              }}
+            >
+              <div className="shrink-0 flex items-center justify-center w-10 h-10 bg-slate-50 rounded-lg border border-slate-100 group-hover:scale-110 transition-transform">
+                {getIcon()}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors truncate">
+                  {item.title}
+                </h3>
+                {item.description && (
+                    <p className="text-xs text-slate-400 truncate hidden sm:block">{item.description}</p>
+                )}
+              </div>
+
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(item); }}
+                  className="p-1.5 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"
+                  title="Edit"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id); }}
+                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title="Remove"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+
+              {item.type === 'link' && !onOpen && (
+                <ExternalLink size={14} className="text-slate-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2 right-2" />
+              )}
+            </a>
+          );
+        };
+
+        // AddItemModal.tsx
+        const AddItemModal = ({ onSave, onClose, initialItem, isDarkMode = false }) => {
+          const [type, setType] = useState('note');
+          const [title, setTitle] = useState('');
+          const [content, setContent] = useState('');
+          const [imagePreview, setImagePreview] = useState(null);
+          const fileInputRef = useRef(null);
+
+          useEffect(() => {
+            if (initialItem) {
+              setType(initialItem.type);
+              setTitle(initialItem.title);
+              setContent(initialItem.content);
+              if (initialItem.type === 'image') {
+                setImagePreview(initialItem.content);
+              }
+            } else {
+                if (isDarkMode) setType('link');
+            }
+          }, [initialItem, isDarkMode]);
+
+          const handleFileChange = (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64String = reader.result;
+                setImagePreview(base64String);
+                setContent(base64String);
+                setType('image');
+              };
+              reader.readAsDataURL(file);
+            }
+          };
+
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            if (!content) return;
+
+            const newItem = {
+              id: initialItem?.id || uuidv4(),
+              type,
+              title: title || (isDarkMode ? 'Unknown Artifact' : 'New Item'),
+              content,
+              tags: initialItem?.tags || (isDarkMode ? ['Games', 'Community'] : []),
+              createdAt: initialItem?.createdAt || Date.now(),
+              isFavorite: initialItem?.isFavorite || isDarkMode,
+              customIcon: initialItem?.customIcon,
+              description: initialItem?.description
+            };
+
+            onSave(newItem);
+            onClose();
+          };
+
+          const bgClass = isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200';
+          const textClass = isDarkMode ? 'text-slate-100' : 'text-slate-800';
+          const subTextClass = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+          const inputClass = isDarkMode 
+            ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-emerald-500/20' 
+            : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-indigo-500 focus:ring-indigo-100';
+          const buttonPrimaryClass = isDarkMode
+            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
+            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200';
+          const typeButtonActive = isDarkMode 
+            ? 'bg-slate-800 text-emerald-400 border-slate-700' 
+            : 'bg-white text-indigo-600 border-slate-200 shadow-sm';
+          const typeButtonInactive = isDarkMode
+            ? 'text-slate-500 hover:text-slate-300'
+            : 'text-slate-500 hover:text-slate-700';
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+              <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200 ${bgClass}`}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className={`text-xl font-bold ${textClass}`}>
+                    {isDarkMode ? 'Broadcast to Market' : (initialItem ? 'Edit Item' : 'Pack Item')}
+                  </h2>
+                  <button onClick={onClose} className={`${subTextClass} hover:${textClass} transition-colors`}>
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className={`flex gap-2 mb-6 p-1 rounded-xl border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+                  {['note', 'link', 'image'].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => { if (!initialItem) { setType(t); setImagePreview(null); setContent(''); } }}
+                      disabled={!!initialItem}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                        type === t ? typeButtonActive : typeButtonInactive
+                      } ${initialItem ? 'opacity-80 cursor-default' : ''}`}
+                    >
+                      <span className="capitalize flex items-center justify-center gap-2">
+                        {t === 'note' && <StickyNote size={14} />}
+                        {t === 'link' && (isDarkMode ? <Globe size={14}/> : <LinkIcon size={14} />)}
+                        {t === 'image' && <ImageIcon size={14} />}
+                        {t}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className={`text-xs font-semibold uppercase tracking-wide ml-1 ${subTextClass}`}>Title</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder={initialItem ? "Item Title" : "Enter title"}
+                      className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all ${inputClass}`}
+                    />
+                  </div>
+
+                  {type === 'image' ? (
+                    <div 
+                      onClick={() => !initialItem && fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center transition-all h-48 relative overflow-hidden group 
+                        ${isDarkMode ? 'border-slate-700 hover:border-emerald-500 hover:bg-slate-900/50' : 'border-slate-300 hover:border-indigo-500 hover:bg-slate-50'}
+                        ${!initialItem ? 'cursor-pointer' : ''}`}
+                    >
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <div className={`p-3 rounded-full mb-3 group-hover:scale-110 transition-transform ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                            <ImageIcon size={24} className={subTextClass} />
+                          </div>
+                          <p className={`text-sm ${subTextClass}`}>Click to upload image</p>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <label className={`text-xs font-semibold uppercase tracking-wide ml-1 ${subTextClass}`}>
+                        {type === 'link' ? 'URL' : 'Content'}
+                      </label>
+                      {type === 'note' ? (
+                        <textarea
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          placeholder="Type your note here..."
+                          className={`w-full h-32 border rounded-xl p-4 focus:outline-none focus:ring-2 resize-none transition-all ${inputClass}`}
+                        />
+                      ) : (
+                        <input
+                          type="url"
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          placeholder="https://..."
+                          className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all ${inputClass}`}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={!content}
+                      className={`w-full py-3 disabled:opacity-50 rounded-xl font-medium transition-all shadow-lg flex items-center justify-center gap-2 ${buttonPrimaryClass}`}
+                    >
+                      {initialItem ? <Save size={18} /> : <Plus size={18} />}
+                      <span>{initialItem ? 'Save Changes' : (isDarkMode ? 'Broadcast to Market' : 'Add to Backpack')}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+
+        // LoginModal.tsx
+        const LoginModal = ({ onLogin, onClose }) => {
+          const [username, setUsername] = useState('');
+          const [password, setPassword] = useState('');
+          const [error, setError] = useState('');
+
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            if (username === 'goober_online' && password === 'NNNNNNNNNNNNNNNNNN') {
+                onLogin({
+                    name: "Goober",
+                    email: "goober@online.net",
+                    avatar: "G"
+                });
+                onClose();
+            } else {
+                setError('Invalid credentials.');
+            }
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+              <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl shadow-2xl p-8 animate-in fade-in zoom-in duration-200">
+                <h2 className="text-2xl font-bold text-slate-800 text-center mb-6">Access Portal</h2>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Username</label>
+                        <input 
+                            type="text" 
+                            value={username}
+                            onChange={e => setUsername(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+                            placeholder="Username"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Password</label>
+                        <input 
+                            type="password" 
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+                            placeholder="Password"
+                        />
+                    </div>
+                    
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+                    <div className="flex gap-2 pt-2">
+                        <button 
+                            type="button" 
+                            onClick={onClose}
+                            className="flex-1 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium shadow-md"
+                        >
+                            Enter
+                        </button>
+                    </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+
+        // GameViewer.tsx
+        const GameViewer = ({ item, onClose }) => {
+          return (
+            <div className="fixed inset-0 z-[60] flex flex-col bg-black animate-in fade-in duration-300">
+              <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-700">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-white font-bold">{item.title}</h3>
+                    <span className="text-xs text-slate-500 px-2 py-0.5 border border-slate-700 rounded bg-slate-800">
+                        Embedded
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <a 
+                        href={item.content} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors"
+                        title="Open in new tab"
+                    >
+                        <ExternalLink size={20} />
+                    </a>
+                    <button 
+                        onClick={onClose}
+                        className="flex items-center gap-2 px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-900/30"
+                        title="Close Game"
+                    >
+                        <X size={18} />
+                        <span className="text-sm font-medium">Close</span>
+                    </button>
+                </div>
+              </div>
+              <div className="flex-1 w-full h-full relative">
+                <iframe 
+                    src={item.content} 
+                    className="w-full h-full border-none"
+                    allow="fullscreen; autoplay; gamepad"
+                    title={item.title}
+                />
+              </div>
+            </div>
+          );
+        };
+
+        // App.tsx
+        const App = () => {
+          const [items, setItems] = useState([]);
+          const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+          const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+          const [editingItem, setEditingItem] = useState(null);
+          const [activeGame, setActiveGame] = useState(null);
+          const [searchQuery, setSearchQuery] = useState('');
+          const [user, setUser] = useState(null);
+          const [isHiddenMode, setIsHiddenMode] = useState(false);
+          const [logoClickCount, setLogoClickCount] = useState(0);
+
+          useEffect(() => {
+            const savedUser = localStorage.getItem('neuropack-user');
+            if (savedUser) {
+              try {
+                setUser(JSON.parse(savedUser));
+              } catch (e) {
+                localStorage.removeItem('neuropack-user');
+              }
+            }
+          }, []);
+
+          useEffect(() => {
+            const savedHidden = localStorage.getItem('neuropack-hidden-mode');
+            if (savedHidden === 'true') {
+              setIsHiddenMode(true);
+              document.body.style.backgroundColor = '#0f172a';
+              loadHiddenItems();
+            } else {
+              document.body.style.backgroundColor = '#f8fafc';
+              loadStandardItems();
+            }
+          }, []);
+
+          useEffect(() => {
+            if (isHiddenMode) {
+              document.body.style.backgroundColor = '#0f172a';
+              localStorage.setItem('neuropack-hidden-mode', 'true');
+              loadHiddenItems();
+            } else {
+              document.body.style.backgroundColor = '#f8fafc';
+              localStorage.setItem('neuropack-hidden-mode', 'false');
+              loadStandardItems();
+              setActiveGame(null);
+            }
+          }, [isHiddenMode]);
+
+          const loadStandardItems = () => {
+            const saved = localStorage.getItem('neuropack-dashboard-items-v1');
+            if (saved) {
+              try {
+                setItems(JSON.parse(saved));
+              } catch (e) {
+                setItems(INITIAL_LINKS);
+              }
+            } else {
+              setItems(INITIAL_LINKS);
+            }
+          };
+
+          const loadHiddenItems = () => {
+            const saved = localStorage.getItem('neuropack-hidden-items');
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                if (parsed.length > 0) {
+                    setItems(parsed);
+                } else {
+                    setItems(HIDDEN_LINKS);
+                }
+              } catch (e) {
+                setItems(HIDDEN_LINKS);
+              }
+            } else {
+              setItems(HIDDEN_LINKS);
+            }
+          };
+
+          const handleSaveItem = (item) => {
+            setItems(prev => {
+              const exists = prev.find(i => i.id === item.id);
+              let newItems;
+              if (exists) {
+                newItems = prev.map(i => i.id === item.id ? item : i);
+              } else {
+                newItems = [item, ...prev];
+              }
+              
+              if (isHiddenMode) {
+                  localStorage.setItem('neuropack-hidden-items', JSON.stringify(newItems));
+              } else {
+                  localStorage.setItem('neuropack-dashboard-items-v1', JSON.stringify(newItems));
+              }
+              return newItems;
+            });
+            setEditingItem(null);
+          };
+
+          const handleEditItem = (item) => {
+            setEditingItem(item);
+            setIsAddModalOpen(true);
+          };
+
+          const handleDeleteItem = (id) => {
+            setItems(prev => {
+              const newItems = prev.filter(i => i.id !== id);
+              if (isHiddenMode) {
+                  localStorage.setItem('neuropack-hidden-items', JSON.stringify(newItems));
+              } else {
+                  localStorage.setItem('neuropack-dashboard-items-v1', JSON.stringify(newItems));
+              }
+              return newItems;
+            });
+          };
+
+          const handleLogin = (userData) => {
+            setUser(userData);
+            localStorage.setItem('neuropack-user', JSON.stringify(userData));
+          };
+
+          const handleLogout = () => {
+            setUser(null);
+            localStorage.removeItem('neuropack-user');
+          };
+
+          const handleLogoClick = () => {
+            const newCount = logoClickCount + 1;
+            setLogoClickCount(newCount);
+            
+            if (newCount === 15) {
+              setIsHiddenMode(prev => !prev);
+              setLogoClickCount(0);
+            }
+          };
+          
+          useEffect(() => {
+            if (logoClickCount > 0 && logoClickCount < 15) {
+              const timer = setTimeout(() => setLogoClickCount(0), 3000);
+              return () => clearTimeout(timer);
+            }
+          }, [logoClickCount]);
+
+          const categories = isHiddenMode 
+            ? ['Games', 'Community'] 
+            : ['Microsoft', 'Learning', 'Google', 'Sites'];
+
+          const filteredItems = items.filter(item => 
+            item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            item.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
+          );
+
+          return (
+            <div className={`min-h-screen font-sans transition-colors duration-500 ${isHiddenMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
+              
+              <header className={`sticky top-0 z-20 backdrop-blur-md border-b px-6 py-4 shadow-sm transition-colors duration-500 ${
+                isHiddenMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'
+              }`}>
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 select-none">
+                     <div 
+                       onClick={handleLogoClick}
+                       className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-95 cursor-pointer ${
+                         isHiddenMode ? 'bg-emerald-600 shadow-emerald-900/20' : 'bg-indigo-600 shadow-indigo-600/20'
+                       }`}
+                     >
+                        <span className="text-white font-bold text-xl">
+                          {isHiddenMode ? 'G' : 'N'}
+                        </span>
+                     </div>
+                     <h1 className={`text-xl font-bold tracking-tight ${isHiddenMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                       {isHiddenMode ? 'GameZone' : 'NeuroPack'}
+                     </h1>
+                  </div>
+
+                  <div className="flex-1 w-full md:w-auto md:max-w-xl px-4">
+                    <div className="relative group">
+                      <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                        isHiddenMode ? 'text-slate-500' : 'text-slate-400'
+                      }`} size={18} />
+                      <input 
+                        type="text" 
+                        placeholder={isHiddenMode ? "Search games..." : "Find resources..."}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className={`w-full border-2 rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all ${
+                          isHiddenMode 
+                            ? 'bg-slate-900 border-slate-800 focus:border-emerald-500 text-slate-200 placeholder-slate-600' 
+                            : 'bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 text-slate-800'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                     {isHiddenMode && (
+                       <button
+                         onClick={() => {
+                           setIsHiddenMode(false);
+                           setLogoClickCount(0);
+                         }}
+                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all mr-2"
+                         title="Return to Standard Mode"
+                       >
+                         <LogOut size={18} />
+                         <span className="hidden sm:inline text-sm font-medium">Exit Mode</span>
+                       </button>
+                     )}
+
+                     {user ? (
+                        <div className="flex items-center gap-3 animate-in fade-in duration-300">
+                             <div className="text-right hidden sm:block">
+                                 <p className={`text-sm font-medium ${isHiddenMode ? 'text-slate-300' : 'text-slate-700'}`}>{user.name}</p>
+                                 <p className={`text-xs ${isHiddenMode ? 'text-slate-500' : 'text-slate-500'}`}>{user.email}</p>
+                             </div>
+                             <button onClick={handleLogout} className="group relative">
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-medium shadow-md border-2 ${
+                                    isHiddenMode ? 'bg-emerald-600 border-emerald-800' : 'bg-indigo-600 border-indigo-100'
+                                }`}>
+                                    {user.avatar}
+                                </div>
+                                <div className="absolute -bottom-8 right-0 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    Sign out
+                                </div>
+                             </button>
+                        </div>
+                     ) : (
+                        <button 
+                          onClick={() => setIsLoginModalOpen(true)}
+                          className={`flex items-center gap-2 border px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm ${
+                            isHiddenMode 
+                               ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                               : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                           <LogIn size={16} />
+                           <span className="hidden sm:inline">Portal Access</span>
+                           <span className="sm:hidden">Login</span>
+                        </button>
+                     )}
+
+                     <div className={`h-6 w-px mx-1 ${isHiddenMode ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+
+                     <button 
+                       onClick={() => { 
+                           setEditingItem(null); 
+                           setIsAddModalOpen(true); 
+                       }}
+                       className={`p-2.5 rounded-xl transition-colors ${
+                         isHiddenMode 
+                            ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700' 
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                       }`}
+                       title={isHiddenMode ? "Add to Black Market" : "Add Custom Link"}
+                     >
+                       <Plus size={20} />
+                     </button>
+                  </div>
+                </div>
+              </header>
+
+              <main className="max-w-7xl mx-auto px-6 py-8 pb-20 space-y-12">
+                {categories.map(category => {
+                   let categoryItems = filteredItems.filter(item => item.tags.includes(category));
+                   
+                   if (isHiddenMode && category === 'Games') {
+                       categoryItems = filteredItems.filter(item => item.tags.includes('Games'));
+                   }
+                   if (isHiddenMode && category === 'Community') {
+                       categoryItems = filteredItems.filter(item => item.tags.includes('Community') || (!item.tags.includes('Games') && !item.tags.includes('Community')));
+                   }
+                   
+                   if (searchQuery && categoryItems.length === 0) return null;
+                   if (categoryItems.length === 0 && !searchQuery && !isHiddenMode) return null;
+
+                   return (
+                     <section key={category} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                       <div className="flex items-center gap-2 mb-4">
+                         <h2 className={`text-xl font-bold ${isHiddenMode ? 'text-emerald-400' : 'text-slate-800'}`}>{category}</h2>
+                         <div className={`h-px flex-1 ml-4 ${isHiddenMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                         {categoryItems.map(item => (
+                           <ItemCard 
+                             key={item.id} 
+                             item={item} 
+                             onDelete={handleDeleteItem} 
+                             onEdit={handleEditItem}
+                             onOpen={isHiddenMode && item.type === 'link' ? (i) => setActiveGame(i) : undefined}
+                           />
+                         ))}
+                         {categoryItems.length === 0 && isHiddenMode && (
+                             <div className="col-span-full py-8 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-600 text-sm">
+                                 No active listings in this sector.
+                             </div>
+                         )}
+                       </div>
+                     </section>
+                   );
+                })}
+
+                {filteredItems.filter(item => !categories.some(c => item.tags.includes(c))).length > 0 && !isHiddenMode && (
+                   <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                     <div className="flex items-center gap-2 mb-4">
+                         <h2 className={`text-xl font-bold ${isHiddenMode ? 'text-emerald-400' : 'text-slate-800'}`}>
+                            Other Resources
+                         </h2>
+                         <div className={`h-px flex-1 ml-4 ${isHiddenMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+                     </div>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredItems.filter(item => !categories.some(c => item.tags.includes(c))).map(item => (
+                           <ItemCard 
+                             key={item.id} 
+                             item={item} 
+                             onDelete={handleDeleteItem}
+                             onEdit={handleEditItem}
+                           />
+                        ))}
+                     </div>
+                   </section>
+                )}
+
+                {filteredItems.length === 0 && (
+                  <div className="text-center py-20">
+                    <div className={`inline-block p-4 rounded-full mb-4 ${isHiddenMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                      <Search size={32} className={isHiddenMode ? 'text-slate-600' : 'text-slate-400'} />
+                    </div>
+                    <h3 className={`text-lg font-medium ${isHiddenMode ? 'text-slate-300' : 'text-slate-700'}`}>No items found</h3>
+                    <p className={isHiddenMode ? 'text-slate-500' : 'text-slate-500'}>Try searching for something else.</p>
+                  </div>
+                )}
+              </main>
+
+              {isAddModalOpen && (
+                <AddItemModal 
+                  onClose={() => { setIsAddModalOpen(false); setEditingItem(null); }} 
+                  onSave={handleSaveItem} 
+                  initialItem={editingItem}
+                  isDarkMode={isHiddenMode}
+                />
+              )}
+
+              {isLoginModalOpen && (
+                <LoginModal 
+                    onLogin={handleLogin}
+                    onClose={() => setIsLoginModalOpen(false)}
+                />
+              )}
+
+              {activeGame && (
+                  <GameViewer 
+                    item={activeGame} 
+                    onClose={() => setActiveGame(null)} 
+                  />
+              )}
+            </div>
+          );
+        };
+
+        const rootElement = document.getElementById('root');
+        if (!rootElement) {
+          throw new Error("Could not find root element to mount to");
+        }
+
+        const root = createRoot(rootElement);
+        root.render(
+          <React.StrictMode>
+            <App />
+          </React.StrictMode>
+        );
+    </script>
+</body>
+</html>
